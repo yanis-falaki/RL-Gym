@@ -168,15 +168,10 @@ class Trainer():
 
 
 if __name__ == "__main__":
-    NUM_ENVS = 10
-    NUM_EPISODES = 1000
-    NUM_TRANSITIONS_PER_EPOCH_MINIBATCH = 64
-    NUM_EPOCHS = 10
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ac = PPOActorCritic(in_features=4).to(device)
     ac_optimizer = optim.Adam(ac.parameters(), lr=1e-3)
 
-    trainer = Trainer(device, ac, ac_optimizer, epsilon=0.1, num_episodes=1000, num_envs=10)
+    trainer = Trainer(device, ac, ac_optimizer, epsilon=0.2, num_episodes=2000, num_envs=10)
     trainer.train()
