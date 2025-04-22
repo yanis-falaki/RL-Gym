@@ -29,8 +29,8 @@ class PPOCriticHead(nn.Module):
 class PPOActorHead(nn.Module):
     def __init__(self, in_features):
         super(PPOActorHead, self).__init__()
-        self.fc_mean = nn.Linear(128, 1)
-        self.fc_log_std = nn.Linear(128, 1)
+        self.fc_mean = nn.Linear(in_features, 1)
+        self.fc_log_std = nn.Linear(in_features, 1)
 
     def forward(self, x):
         mean = self.fc_mean(x)
@@ -47,12 +47,12 @@ class PPOActorCritic(nn.Module):
         self.log_8 = torch.log(torch.tensor(8)) # Used for logp_pi calculation
 
     def forward(self, x):
-        self.backbone(x)
+        x = self.backbone(x)
         state_value = self.critic_head(x)
         mean, std = self.actor_head(x)
         return mean, std, state_value
     
-    def calculate_logp_pi_from_dist(self, u, pi_u_distribution):
+    def calculate_logp_pi_from_u(self, u, pi_u_distribution):
         # Computes logprob from gaussian then applies correction for 2*tanh().
         # 2*tanh() correction reformulated from log(2*(1-tanh^2(x))) to a more numerically stable version below
         # Avoids the e^x + e^-x which creates large numerically unstable numbers
@@ -69,8 +69,15 @@ class PPOActorCritic(nn.Module):
         else:
             u = pi_u_distribution.rsample() # Uses reparametrization trick
         
-        logp_pi = self.calculate_logp_pi_from_dist(u, pi_u_distribution)
+        logp_pi = self.calculate_logp_pi_from_u(u, pi_u_distribution)
 
         pi_action = 2*F.tanh(u)
         
         return pi_action, logp_pi, u, state_value
+    
+    def get_logp_pi_from_u_and_state_value(self, obs, u):
+        mean, std, state_value = self(obs)
+        pi_u_distribution = dist.Normal(mean, std)
+        logp_pi = self.calculate_logp_pi_from_u(u, pi_u_distribution)
+
+        return logp_pi, state_value
