@@ -37,9 +37,9 @@ class TorchRLPendulumEnv(EnvBase):
         # Define observation and action specs
         self.observation_spec = Composite(
             observation=Bounded(
-                low=torch.tensor([-1.0, -1.0, -8.0], device=self.device),
-                high=torch.tensor([1.0, 1.0, 8.0], device=self.device),
-                shape=(3,),
+                low=torch.tensor([-1.0, -1.0, -8.0, 0.0], device=self.device),
+                high=torch.tensor([1.0, 1.0, 8.0, 1.0], device=self.device),
+                shape=(4,),
                 dtype=torch.float32,
                 device=self.device,
             ),
@@ -86,6 +86,8 @@ class TorchRLPendulumEnv(EnvBase):
             ),
             shape=(),
         )
+
+        self.frame = 0
     
     def _reset(
         self, 
@@ -93,11 +95,14 @@ class TorchRLPendulumEnv(EnvBase):
         **kwargs
     ) -> TensorDict:
         """Reset the environment and return the initial state."""
+        self.frame = 0
+
         if tensordict is not None and "seed" in tensordict:
             seed = tensordict.get("seed").item()
             kwargs["seed"] = seed
         
         obs, info = self.env.reset(**kwargs)
+        obs = np.append(obs, self.frame)
         
         # Convert observation to torch tensor and create TensorDict
         obs_tensor = torch.tensor(obs, dtype=torch.float32, device=self.device)
@@ -110,6 +115,8 @@ class TorchRLPendulumEnv(EnvBase):
     
     def _step(self, tensordict: TensorDict) -> TensorDict:
         """Take a step in the environment using the provided action."""
+        self.frame += 1
+
         # Extract action from tensordict
         action = tensordict.get("action")
         
@@ -118,6 +125,7 @@ class TorchRLPendulumEnv(EnvBase):
         
         # Step the environment
         next_obs, reward, terminated, truncated, info = self.env.step(action_np)
+        next_obs = np.append(next_obs, self.frame/200)
         
         # Convert outputs to torch tensors
         next_obs_tensor = torch.tensor(next_obs, dtype=torch.float32, device=self.device)
@@ -125,6 +133,10 @@ class TorchRLPendulumEnv(EnvBase):
         done_tensor = torch.tensor([terminated or truncated], dtype=torch.bool, device=self.device)
         terminated_tensor = torch.tensor([terminated], dtype=torch.bool, device=self.device)
         truncated_tensor = torch.tensor([truncated], dtype=torch.bool, device=self.device)
+
+        self.last_reward_tensor = reward_tensor
+        self.last_reward = reward
+        self.last_action_np = action_np
         
         # Create output TensorDict
         out_tensordict = TensorDict({
